@@ -17,6 +17,7 @@ repos:
       - id: end-of-file-fixer
       - id: check-added-large-files
         args: [--maxkb=5120]
+        exclude: ^NightLightTraySetup\.exe$
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.0
