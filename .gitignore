@@ -1,0 +1,15 @@
+.venv/
+.idea/
+.toolchains/
+.smoke/
+.ruff_cache/
+__pycache__/
+*.pyc
+build/
+build-*/
+dist/
+dist-*/
+/NightLightTray.exe
+/NightLightTraySetup.exe
+*.log
+*.spec

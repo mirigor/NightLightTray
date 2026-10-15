@@ -1,0 +1,3 @@
+# QtCore/QtGui/QtWidgets: достаточно для трея; WebEngine и PDF намеренно не ставятся.
+PySide6-Essentials>=6.6,<7
+pyinstaller>=6.0,<7

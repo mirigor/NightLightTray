@@ -1,0 +1,29 @@
+Внешний компонент: win-nightlight-cli (wnl.exe), версия 0.2.0.
+Проект: https://github.com/kvnxiao/win-nightlight-cli
+Коммит: 1081b0a9d11a7ba84bcc40385807e99b1b5ac306
+Лицензия MIT: WNL_LICENSE.txt.
+
+Сборка из исходников без изменений:
+Rust 1.99.0, x86_64-pc-windows-msvc, --locked --release,
+RUSTFLAGS=-C target-feature=+crt-static.
+Повторная сборка: tools/build_wnl.bat (Rust и MSVC Build Tools C++).
+
+NightLight Tray использует только wnl status и wnl temp <KELVIN>.
+Шкала сохраняет пересчёт прежнего nightlight-cli: K = 6500 - 53 * процент.
+Обратное преобразование округляется до ближайшего целого процента.
+Настройки расписания и состояние включения не изменяются приложением.
+Если wnl сообщает Windows default, программа не выдумывает интенсивность.
+
+Для исходников wnl.exe находится в tools. build.bat включает его и лицензию
+в NightLightTray.exe. Установка Node.js, npm и Rust для запуска этой сборки
+не требуется. NIGHTLIGHT_WNL может задать полный путь к другому wnl.exe.
+
+Ручная проверка проблемы 56% и 68%:
+1. Запомнить текущую интенсивность в параметрах Windows.
+2. В новом NightLightTray.exe выставить 56%, затем 68%.
+3. Сверить проценты с системным ползунком и цветом экрана.
+4. Вернуть исходную интенсивность.
+Чтение подтверждает сохранённую настройку, но не измеряет оттенок экрана.
+
+Диагностика только чтения: .venv\Scripts\python.exe tools\check_wnl.py
+Проверка записи с восстановлением: .venv\Scripts\python.exe tools\check_wnl.py --write-test

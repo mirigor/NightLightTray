@@ -1,0 +1,30 @@
+minimum_pre_commit_version: "4.6.0"
+
+default_language_version:
+  python: python3.10
+
+exclude: ^(\.venv|\.idea|\.toolchains|\.smoke|\.ruff_cache|build[^/]*|dist[^/]*)/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=5120]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        name: Ruff (check and fix)
+        types_or: [python, pyi]
+        args: [--fix]
+      - id: ruff-format
+        name: Ruff (format)
+        types_or: [python, pyi]
