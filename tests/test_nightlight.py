@@ -1,6 +1,7 @@
 """Тесты win-nightlight-cli без изменения ночного света Windows"""
 
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -83,6 +84,19 @@ class ParseActiveTests(unittest.TestCase):
 
 
 class LookupAndErrorTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Компонент wnl.exe запускается только на Windows")
+    def test_bundled_cli_contains_temperature_refresh_fix(self):
+        command = Path(__file__).resolve().parent.parent / "tools" / "wnl.exe"
+        result = subprocess.run(
+            [str(command), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            check=True,
+        )
+        self.assertEqual(result.stdout.strip(), "wnl 0.4.0")
+
     def test_missing_command(self):
         with patch.dict(os.environ, {"NIGHTLIGHT_WNL": "Z:/missing/wnl.exe"}):
             self.assertIsNone(find_wnl())

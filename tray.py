@@ -1,12 +1,10 @@
 """Значок трея, меню и жизненный цикл приложения"""
 
-import ctypes
 import getpass
 import logging
 import time
-from ctypes import wintypes
 
-from PySide6.QtCore import QAbstractNativeEventFilter, QCoreApplication, QLockFile, QTimer
+from PySide6.QtCore import QCoreApplication, QLockFile, QTimer
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QMenu, QMessageBox, QSystemTrayIcon
@@ -15,31 +13,6 @@ from autostart import refresh_enabled
 from config import APP_ID, EXIT_TIMEOUT_MS, data_directory, resource_path
 from popup import NightLightPopup
 from settings import SettingsMenu
-
-
-class PowerMessage(ctypes.Structure):
-    """Начальные поля Windows MSG, достаточные для события пробуждения"""
-
-    _fields_ = [
-        ("hwnd", wintypes.HWND),
-        ("message", wintypes.UINT),
-        ("wParam", wintypes.WPARAM),
-    ]
-
-
-class ResumeEventFilter(QAbstractNativeEventFilter):
-    """Отмечает пробуждение без фонового опроса системы"""
-
-    def __init__(self, client):
-        super().__init__()
-        self.client = client
-
-    def nativeEventFilter(self, event_type, message):
-        if bytes(event_type) == b"windows_generic_MSG":
-            event = ctypes.cast(int(message), ctypes.POINTER(PowerMessage)).contents
-            if event.message == 0x0218 and event.wParam in (0x0006, 0x0007, 0x0012):
-                self.client.mark_resumed()
-        return False
 
 
 class SingleInstance:
@@ -97,7 +70,6 @@ class TrayController:
         self._exiting = False
         self._exit_error = None
         self._exit_finished = False
-        self._power_filter = None
         self._exit_timer = QTimer(client)
         self._exit_timer.setSingleShot(True)
         self._exit_timer.setInterval(EXIT_TIMEOUT_MS)
@@ -126,9 +98,7 @@ class TrayController:
         self.tray.setContextMenu(menu)
 
     def start(self):
-        self.popup.winId()
-        self._power_filter = ResumeEventFilter(self.client)
-        QCoreApplication.instance().installNativeEventFilter(self._power_filter)
+        self.logger.info("Приложение запущено; управление через win-nightlight-cli")
         self.tray.show()
         try:
             refresh_enabled()
@@ -170,9 +140,6 @@ class TrayController:
 
     def close(self):
         """Завершает процессы и скрывает значок при выходе"""
-        if self._power_filter is not None:
-            QCoreApplication.instance().removeNativeEventFilter(self._power_filter)
-            self._power_filter = None
         self._exit_timer.stop()
         self.popup.stop()
         self.client.close()

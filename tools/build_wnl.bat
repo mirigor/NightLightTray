@@ -2,9 +2,9 @@
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0.."
-rem Сборка проверенной версии. Требуются Rust и Visual Studio Build Tools C++.
+rem Сборка проверенной версии, требуются Rust и Visual Studio Build Tools C++
 set "SOURCE_DIR=.toolchains\win-nightlight-cli"
-set "WNL_COMMIT=1081b0a9d11a7ba84bcc40385807e99b1b5ac306"
+set "WNL_COMMIT=96fdd61b06ca4fb74dbc2b8368ddc9bd4b77ab03"
 if exist ".toolchains\cargo\bin\cargo.exe" (
     set "CARGO_HOME=%CD%\.toolchains\cargo"
     set "RUSTUP_HOME=%CD%\.toolchains\rustup"

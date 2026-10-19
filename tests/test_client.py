@@ -1,6 +1,5 @@
 """Проверки очереди QProcess без запуска настоящего Night Light"""
 
-import ctypes
 import os
 import unittest
 from types import SimpleNamespace
@@ -8,11 +7,11 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QByteArray, QObject, Signal
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 from nightlight import NightLightClient
-from tray import PowerMessage, ResumeEventFilter, TrayController
+from tray import TrayController
 
 
 class FakeProcess(QObject):
@@ -158,28 +157,18 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(self.states, [(1, False)])
         self.assertEqual(self.errors, [])
 
-    def test_first_change_after_resume_reapplies_active_night_light(self):
-        self.client.mark_resumed()
+    def test_active_temperature_change_does_not_toggle_night_light(self):
         self.client.set_strength(68, 1)
         self.assertEqual(self.client._process.arguments, ["temp", "2896"])
         self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
-        self.assertEqual(self.client._process.arguments, ["off"])
-        self.assertEqual(self.values, [])
-        self.client._process.finish()
-        self.assertEqual(self.client._process.arguments, ["on"])
-        self.client._process.finish()
         self.assertEqual(self.client._process.arguments, ["status"])
         self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
+        self.assertIsNone(self.client._process)
         self.assertEqual(self.values, [(1, 68)])
+        self.assertEqual(self.states, [(1, True)])
         self.assertEqual(self.errors, [])
-        self.client.set_strength(56, 2)
-        self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 3532K\n")
-        self.assertIsNone(self.client._process)
 
-    def test_resume_does_not_turn_on_inactive_night_light(self):
-        self.client.mark_resumed()
+    def test_temperature_change_does_not_turn_on_inactive_night_light(self):
         self.client.set_strength(68, 1)
         self.client._process.finish()
         self.client._process.finish(stdout=b"active: no\ncolor temperature: 2896K\n")
@@ -187,65 +176,16 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(self.states, [(1, False)])
         self.assertIsNone(self.client._process)
 
-    def test_newer_slider_value_wins_during_resume_recovery(self):
-        self.client.mark_resumed()
-        self.client.set_strength(56, 1)
-        self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 3532K\n")
-        self.assertEqual(self.client._process.arguments, ["off"])
+    def test_unchanged_temperature_still_reaches_cli_for_native_refresh(self):
+        self.client.read_strength(1)
+        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
         self.client.set_strength(68, 2)
-        self.client._process.finish()
-        self.client._process.finish()
         self.assertEqual(self.client._process.arguments, ["temp", "2896"])
         self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
-        self.assertEqual(self.client._process.arguments, ["off"])
-        self.client._process.finish()
-        self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
-        self.assertEqual(self.values, [(2, 68)])
-
-    def test_failed_resume_off_still_attempts_to_restore_on(self):
-        self.client.mark_resumed()
-        self.client.set_strength(68, 1)
-        self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
-        self.client._process.finish(1, stderr=b"off failed")
-        self.assertEqual(self.client._process.arguments, ["on"])
-        self.assertIn("off failed", self.errors[0][1])
-        self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
-        self.assertEqual(self.values, [(1, 68)])
-
-    def test_resume_on_error_reads_actual_state(self):
-        self.client.mark_resumed()
-        self.client.set_strength(68, 1)
-        self.client._process.finish()
-        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
-        self.client._process.finish()
-        self.client._process.finish(1, stderr=b"on failed")
         self.assertEqual(self.client._process.arguments, ["status"])
-        self.client._process.finish(stdout=b"active: no\ncolor temperature: 2896K\n")
-        self.assertEqual(self.states, [(1, False)])
-        self.assertTrue(any("не включился" in message for _, message in self.errors))
-
-    def test_resume_event_filter_marks_only_power_resume_messages(self):
-        event_filter = ResumeEventFilter(self.client)
-        message = PowerMessage()
-        message.message = 0x0218
-        message.wParam = 0x0012
-        self.assertFalse(
-            event_filter.nativeEventFilter(
-                QByteArray(b"windows_generic_MSG"), ctypes.addressof(message)
-            )
-        )
-        self.assertTrue(self.client._wake_recovery)
-        self.client._wake_recovery = False
-        message.message = 0x0001
-        event_filter.nativeEventFilter(
-            QByteArray(b"windows_generic_MSG"), ctypes.addressof(message)
-        )
-        self.assertFalse(self.client._wake_recovery)
+        self.client._process.finish(stdout=b"active: yes\ncolor temperature: 2896K\n")
+        self.assertEqual(self.values, [(1, 68), (2, 68)])
+        self.assertIsNone(self.client._process)
 
     def test_malformed_active_state_does_not_publish_partial_status(self):
         self.client.read_strength(1)

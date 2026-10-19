@@ -5,7 +5,7 @@ Unicode true
 !include "x64.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.0.1"
+  !define APP_VERSION "1.0.2"
 !endif
 !ifndef APP_EXE
   !define APP_EXE "build\installer-app\NightLightTray.exe"

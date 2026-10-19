@@ -1,5 +1,6 @@
 """Асинхронное управление штатным ночным светом через win-nightlight-cli"""
 
+import logging
 import os
 import re
 import shutil
@@ -150,19 +151,12 @@ class NightLightClient(QObject):
         self._pending_sets = LatestRequest()
         self._pending_read = None
         self._verification = None
-        self._wake_recovery = False
-        self._recovery_generation = None
         self._closing = False
         self._finishing = False
 
     @property
     def available(self):
         return bool(self.command)
-
-    def mark_resumed(self):
-        """Запоминает пробуждение до следующего изменения интенсивности"""
-        if not self._closing:
-            self._wake_recovery = True
 
     def read_strength(self, generation=0):
         """Запрашивает реальную интенсивность. Новый запрос заменяет ожидающий старый"""
@@ -204,7 +198,6 @@ class NightLightClient(QObject):
         pending_set = self._pending_sets.take()
         if pending_set:
             value, generation = pending_set
-            self._recovery_generation = None
             self._verification = (generation, value)
             self._run("set", ["temp", str(strength_to_kelvin(value))], generation)
             return
@@ -258,31 +251,16 @@ class NightLightClient(QObject):
                 return
             generation = self._generation
             verification = self._verification
-            if (
-                self._wake_recovery
-                and verification == (generation, value)
-                and active
-                and generation >= self._pending_sets.generation
-                and self._pending_sets.pending is None
-            ):
-                self._wake_recovery = False
-                self._recovery_generation = generation
-                self._clear_process()
-                self._run("resume_off", ["off"], generation)
-                return
-            if verification == (generation, value) and not active:
-                self._wake_recovery = False
             self._verification = None
-            if self._recovery_generation == generation:
-                self._recovery_generation = None
-                if not active:
-                    self.operation_error.emit(
-                        generation,
-                        "После пробуждения ночной свет не включился снова. Проверьте его в параметрах Windows.",
-                    )
             self._clear_process()
             if generation >= self._pending_sets.generation:
                 self.status_ready.emit(generation, value, active)
+                if verification:
+                    logging.getLogger("nightlight_tray").info(
+                        "Windows сохранила интенсивность %s%%; ночной свет %s",
+                        value,
+                        "включён" if active else "выключен",
+                    )
                 if verification and value != verification[1]:
                     self.operation_error.emit(
                         generation,
@@ -292,18 +270,6 @@ class NightLightClient(QObject):
                     )
             self.command_finished.emit(generation)
             self._start_next()
-            return
-        if self._kind == "resume_off":
-            generation = self._generation
-            self._clear_process()
-            self._run("resume_on", ["on"], generation)
-            return
-        if self._kind == "resume_on":
-            generation = self._generation
-            self._clear_process()
-            if self._pending_sets.pending:
-                self._wake_recovery = True
-            self._enqueue_read(generation)
             return
         generation = self._generation
         self._clear_process()
@@ -316,19 +282,6 @@ class NightLightClient(QObject):
     def _complete(self, success, message):
         failed_set = self._kind == "set" and not success
         generation = self._generation
-        if self._kind in ("resume_off", "resume_on"):
-            failed_kind = self._kind
-            self._clear_process()
-            self.operation_error.emit(
-                generation,
-                "Не удалось восстановить ночной свет после пробуждения: {}".format(message),
-            )
-            if failed_kind == "resume_off":
-                # Возвращаем исходное включённое состояние даже после ошибки выключения
-                self._run("resume_on", ["on"], generation)
-            else:
-                self._enqueue_read(generation)
-            return
         self._clear_process()
         if not success and generation >= self._pending_sets.generation:
             self.operation_error.emit(generation, message)
@@ -356,8 +309,6 @@ class NightLightClient(QObject):
         self._pending_read = None
         self._pending_sets.pending = None
         self._verification = None
-        self._wake_recovery = False
-        self._recovery_generation = None
         process = self._process
         self._process = None
         self._kind = None
